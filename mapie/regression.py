@@ -4,7 +4,6 @@ from typing import Iterable, List, Optional, Tuple, Union, cast
 
 from joblib import Parallel, delayed
 import numpy as np
-import numpy.ma as ma
 from sklearn.base import BaseEstimator, RegressorMixin, clone
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import BaseCrossValidator
@@ -18,6 +17,7 @@ from sklearn.utils.validation import (
 )
 
 from ._typing import ArrayLike, NDArray
+from ._compatibility import np_nanquantile
 from .aggregation_functions import aggregate_all, phi2D
 from .utils import (
     check_cv,
@@ -29,9 +29,7 @@ from .utils import (
     check_null_weight,
     check_verbose,
     fit_estimator,
-    masked_quantile,
 )
-# from ._compatibility import np_quantile
 
 
 class MapieRegressor(BaseEstimator, RegressorMixin):
@@ -188,6 +186,7 @@ class MapieRegressor(BaseEstimator, RegressorMixin):
 
     cv_need_agg_function = ["Subsample"]
     valid_methods_ = ["naive", "base", "plus", "minmax"]
+    plus_like_method = ["plus"]
     valid_agg_functions_ = [None, "median", "mean"]
     fit_attributes = [
         "single_estimator_",
@@ -225,7 +224,7 @@ class MapieRegressor(BaseEstimator, RegressorMixin):
         if self.method not in self.valid_methods_:
             raise ValueError(
                 "Invalid method. "
-                "Allowed values are 'naive', 'base', 'plus' and 'minmax'."
+                f"Allowed values are {self.valid_methods_}."
             )
 
         check_n_jobs(self.n_jobs)
@@ -422,13 +421,14 @@ class MapieRegressor(BaseEstimator, RegressorMixin):
         ArrayLike of shape (n_samples_test,)
             Array of aggregated predictions for each testing  sample.
         """
-        if self.agg_function == "median":
-            return phi2D(A=x, B=k, fun=lambda x: np.nanmedian(x, axis=1))
         if self.cv == "prefit":
             raise ValueError(
                 "There should not be aggregation of predictions if cv is "
                 "'prefit'"
             )
+        if self.agg_function == "median":
+            return phi2D(A=x, B=k, fun=lambda x: np.nanmedian(x, axis=1))
+
         # To aggregate with mean() the aggregation coud be done
         # with phi2D(A=x, B=k, fun=lambda x: np.nanmean(x, axis=1).
         # However, phi2D contains a np.apply_along_axis loop which
@@ -611,7 +611,7 @@ class MapieRegressor(BaseEstimator, RegressorMixin):
         alpha_np = cast(NDArray, alpha)
         check_alpha_and_n_samples(alpha_np, n)
         if self.method in ["naive", "base"] or self.cv == "prefit":
-            quantile = masked_quantile(
+            quantile = np_nanquantile(
                 self.conformity_scores_, 1 - alpha_np, method="higher"
             )
             y_pred_low = y_pred[:, np.newaxis] - quantile
@@ -634,7 +634,7 @@ class MapieRegressor(BaseEstimator, RegressorMixin):
 
             y_pred_multi = self.aggregate_with_mask(y_pred_multi, self.k_)
 
-            if self.method == "plus":
+            if self.method in self.plus_like_method:
                 lower_bounds = y_pred_multi - self.conformity_scores_
                 upper_bounds = y_pred_multi + self.conformity_scores_
 
@@ -646,8 +646,8 @@ class MapieRegressor(BaseEstimator, RegressorMixin):
 
             y_pred_low = np.column_stack(
                 [
-                    masked_quantile(
-                        ma.masked_invalid(lower_bounds),
+                    np_nanquantile(
+                        lower_bounds,
                         _alpha,
                         axis=1,
                         method="lower",
@@ -658,8 +658,8 @@ class MapieRegressor(BaseEstimator, RegressorMixin):
 
             y_pred_up = np.column_stack(
                 [
-                    masked_quantile(
-                        ma.masked_invalid(upper_bounds),
+                    np_nanquantile(
+                        upper_bounds,
                         1 - _alpha,
                         axis=1,
                         method="higher",

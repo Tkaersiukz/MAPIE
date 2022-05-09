@@ -26,9 +26,9 @@ class Subsample(BaseCrossValidator):
         Number of samples in each resampling. By default ``None``,
         the size of the training set.
     replace: bool
-        Whether to replace samples in resamplings or not.
+        Whether to replace samples in resamplings or not. By default ``True``.
     random_state: Optional
-        int or RandomState instance.
+        int or RandomState instance. . By default ``None``
 
 
     Examples
@@ -190,12 +190,12 @@ class BlockBootstrap(BaseCrossValidator):  # type: ignore
         else:
             raise ValueError(
                 "At least one argument between ``length`` or "
-                "``n_blocks`` has to be not None"
+                "``n_blocks`` has to be not None."
             )
         indices = np.arange(len(X))
         if (length <= 0) or (length > len(indices)):
             raise ValueError(
-                "The length of blocks is <= 0 or greater than the lenght"
+                "The length of blocks is <= 0 or greater than the lenght          "
                 "of training set."
             )
 
@@ -203,11 +203,12 @@ class BlockBootstrap(BaseCrossValidator):  # type: ignore
             blocks = sliding_window_view(indices, window_shape=length)
         else:
             indices = indices[(len(indices) % length):]
+            print(indices)
             blocks_number = len(indices) // length
             blocks = np.asarray(
                 np.array_split(indices, indices_or_sections=blocks_number)
             )
-
+        print(blocks)
         random_state = check_random_state(self.random_state)
 
         for k in range(self.n_resamplings):
