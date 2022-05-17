@@ -195,7 +195,7 @@ class BlockBootstrap(BaseCrossValidator):  # type: ignore
         indices = np.arange(len(X))
         if (length <= 0) or (length > len(indices)):
             raise ValueError(
-                "The length of blocks is <= 0 or greater than the lenght          "
+                "The length of blocks is <= 0 or greater than the length"
                 "of training set."
             )
 
@@ -203,12 +203,10 @@ class BlockBootstrap(BaseCrossValidator):  # type: ignore
             blocks = sliding_window_view(indices, window_shape=length)
         else:
             indices = indices[(len(indices) % length):]
-            print(indices)
             blocks_number = len(indices) // length
             blocks = np.asarray(
                 np.array_split(indices, indices_or_sections=blocks_number)
             )
-        print(blocks)
         random_state = check_random_state(self.random_state)
 
         for k in range(self.n_resamplings):
