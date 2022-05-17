@@ -354,6 +354,7 @@ class MapieClassifier(BaseEstimator, ClassifierMixin):
             err_msg="The sum of the scores is not equal to one.",
             rtol=1e-5
         )
+        y_pred_proba = cast(NDArray, y_pred_proba).astype(np.float64)
         return y_pred_proba
 
     def _get_last_index_included(
