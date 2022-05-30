@@ -28,7 +28,7 @@ def f(x: NDArray) -> NDArray:
     return np.array(5 * x + 5 * x ** 4 - 9 * x ** 2)
 
 
-def get_homoscedastic_data(
+def get_heteroscedastic_data(
     n_train: int = 200, n_true: int = 200, sigma: float = 0.1
 ) -> Tuple[NDArray, NDArray, NDArray, NDArray, float]:
     """
@@ -60,7 +60,11 @@ def get_homoscedastic_data(
     q95 = scipy.stats.norm.ppf(0.95)
     X_train = np.linspace(0, 1, n_train)
     X_true = np.linspace(0, 1, n_true)
-    y_train = f(X_train) + np.random.normal(0, sigma, n_train)
+    y_train = np.array(
+        [
+            (f(x) + (np.random.normal(0, sigma))*x) for x in X_train
+        ]
+    )
     y_true = f(X_true)
     y_true_sigma = q95 * sigma
     return X_train, y_train, X_true, y_true, y_true_sigma
@@ -119,7 +123,7 @@ def plot_1d_data(
     ax.legend()
 
 
-X_train, y_train, X_test, y_test, y_test_sigma = get_homoscedastic_data()
+X_train, y_train, X_test, y_test, y_test_sigma = get_heteroscedastic_data()
 
 polyn_model = Pipeline(
     [
@@ -133,7 +137,6 @@ polyn_model_quant = Pipeline(
         ("linear", QuantileRegressor(
             alpha=1e-9,
             fit_intercept=False,
-            solver="highs",
         )),
     ]
 )

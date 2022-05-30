@@ -6,16 +6,18 @@ This example uses :class:`mapie.regression.MapieRegressor` to estimate
 prediction intervals capturing both aleatoric and epistemic uncertainties
 on a one-dimensional dataset with homoscedastic noise and normal sampling.
 """
-from typing import Any, Callable, Tuple, TypeVar
+from typing import Any, Callable, Tuple, TypeVar, Union
 
 from typing_extensions import TypedDict
 import numpy as np
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, QuantileRegressor
+from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import PolynomialFeatures
 import matplotlib.pyplot as plt
 
 from mapie.regression import MapieRegressor
+from mapie.quantile_regression import MapieQuantileRegressor
 from mapie._typing import NDArray
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -86,20 +88,51 @@ polyn_model = Pipeline(
         ("linear", LinearRegression()),
     ]
 )
+polyn_model_quant = Pipeline(
+    [
+        ("poly", PolynomialFeatures(degree=degree_polyn)),
+        ("linear", QuantileRegressor(
+            alpha=1e-9,
+            fit_intercept=False,
+            solver="highs",
+            )),
+    ]
+)
+
 
 # Estimating prediction intervals
-Params = TypedDict("Params", {"method": str, "cv": int})
+Params = TypedDict("Params", {"method": str, "cv": Union[int, str]})
 STRATEGIES = {
     "jackknife_plus": Params(method="plus", cv=-1),
     "jackknife_minmax": Params(method="minmax", cv=-1),
-    "cv_plus": Params(method="plus", cv=10),
+    # "cv_plus": Params(method="plus", cv=10),
     "cv_minmax": Params(method="minmax", cv=10),
+    "quantile": Params(method="quantile", cv="split")
 }
 y_pred, y_pis = {}, {}
 for strategy, params in STRATEGIES.items():
-    mapie = MapieRegressor(polyn_model, **params)
-    mapie.fit(X_train, y_train)
-    y_pred[strategy], y_pis[strategy] = mapie.predict(X_test, alpha=0.05)
+    if strategy == "quantile":
+        mapie = MapieQuantileRegressor(polyn_model_quant, **params)
+        X_train, X_calib, y_train, y_calib = train_test_split(
+            X_train,
+            y_train,
+            test_size=0.5,
+            random_state=1
+        )
+        mapie.fit(
+            X_train,
+            y_train,
+            X_calib,
+            y_calib
+        )
+        print(mapie.estimators_)
+        y_pred[strategy], y_pis[strategy] = mapie.predict(
+            X_test
+        )
+    else:
+        mapie = MapieRegressor(polyn_model, **params)
+        mapie.fit(X_train, y_train)
+        y_pred[strategy], y_pis[strategy] = mapie.predict(X_test, alpha=0.05)
 
 
 # Visualization
